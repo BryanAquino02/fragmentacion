@@ -12,8 +12,7 @@ runs_tunel/v1/weights/best.pt, o ajusta la ruta MODEL_PATH abajo).
 
 import streamlit as st
 from ultralytics import YOLO
-from PIL import Image
-import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 # ---------- CONFIGURACIÓN ----------
 MODEL_PATH = "best.pt"  # coloca el archivo best.pt en la raíz del repo
@@ -47,20 +46,19 @@ if archivo is not None:
     with st.spinner("Analizando imagen..."):
         resultados = model.predict(imagen, conf=CONF_THRESHOLD, agnostic_nms=True, verbose=False)[0]
 
-    # Dibujar cajas manualmente para controlar colores por clase
-    img_dibujada = np.array(imagen).copy()
+    # Dibujar cajas con PIL (sin depender de OpenCV / librerías de sistema)
+    img_dibujada = imagen.copy()
+    draw = ImageDraw.Draw(img_dibujada)
     conteo = {0: 0, 1: 0}
 
-    import cv2
     for box in resultados.boxes:
         cls = int(box.cls[0])
         conf = float(box.conf[0])
         x1, y1, x2, y2 = map(int, box.xyxy[0])
         color = CLASS_COLORS.get(cls, (255, 255, 255))
-        cv2.rectangle(img_dibujada, (x1, y1), (x2, y2), color, 2)
+        draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
         label = f"{CLASS_NAMES.get(cls, cls)} {conf:.2f}"
-        cv2.putText(img_dibujada, label, (x1, max(y1 - 5, 10)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
+        draw.text((x1, max(y1 - 12, 0)), label, fill=color)
         conteo[cls] = conteo.get(cls, 0) + 1
 
     st.image(img_dibujada, use_container_width=True, caption="Detecciones")
