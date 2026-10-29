@@ -6,22 +6,40 @@ Requiere: pip install streamlit ultralytics pillow
 USO:
     streamlit run app.py
 
-Deja este archivo en la raíz de tu carpeta de proyecto (junto a
-runs_tunel/v1/weights/best.pt, o ajusta la ruta MODEL_PATH abajo).
+Deja este archivo en la raíz de tu carpeta de proyecto (junto a best.pt,
+o ajusta la ruta MODEL_PATH abajo).
 """
 
 import streamlit as st
 from ultralytics import YOLO
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 # ---------- CONFIGURACIÓN ----------
 MODEL_PATH = "best.pt"  # coloca el archivo best.pt en la raíz del repo
-CONF_THRESHOLD = 0.25
 CLASS_NAMES = {0: "TUNEL+", 1: "TUNEL-"}
 CLASS_COLORS = {0: (255, 60, 60), 1: (60, 200, 60)}  # rojo / verde para diferenciar
+CONF_DEFAULT = 0.25
 # ------------------------------------
 
 st.set_page_config(page_title="TUNEL AI — Demo de detección", page_icon="🧬")
+
+# Estilo minimalista para el slider (la mayor parte del color sale de .streamlit/config.toml)
+st.markdown(
+    """
+    <style>
+    [data-testid="stSlider"] [role="slider"] {
+        background: #fff;
+        border: 0;
+        height: 24px;
+        width: 24px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    }
+    [data-testid="stSliderTickBarMin"],
+    [data-testid="stSliderTickBarMax"] { display: none; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_resource
@@ -29,6 +47,18 @@ def cargar_modelo(path):
     return YOLO(path)
 
 
+# ---------- BARRA LATERAL ----------
+with st.sidebar:
+    conf_threshold = st.slider(
+        "Umbral de confianza",
+        min_value=0.05,
+        max_value=0.95,
+        value=CONF_DEFAULT,
+        step=0.01,
+    )
+    st.caption("Más bajo detecta más. Más alto, solo lo seguro.")
+
+# ---------- PÁGINA PRINCIPAL ----------
 st.title("🧬 TUNEL AI — Demo de detección")
 st.caption("Detección y conteo de espermatozoides TUNEL+ / TUNEL- con YOLOv8")
 
@@ -44,7 +74,9 @@ if archivo is not None:
     imagen = Image.open(archivo).convert("RGB")
 
     with st.spinner("Analizando imagen..."):
-        resultados = model.predict(imagen, conf=CONF_THRESHOLD, agnostic_nms=True, verbose=False)[0]
+        resultados = model.predict(
+            imagen, conf=conf_threshold, agnostic_nms=True, verbose=False
+        )[0]
 
     # Dibujar cajas con PIL (sin depender de OpenCV / librerías de sistema)
     img_dibujada = imagen.copy()
@@ -70,7 +102,4 @@ if archivo is not None:
     pct = (conteo.get(0, 0) / total * 100) if total > 0 else 0
     col3.metric("% Fragmentación", f"{pct:.1f}%")
 
-    st.caption(
-        f"Total detectado: {total} | Umbral de confianza: {CONF_THRESHOLD} "
-        "(ajustable en el código, MODEL_PATH y CONF_THRESHOLD)"
-    )
+    st.caption(f"Total detectado: {total} | Umbral de confianza: {conf_threshold:.2f}")
